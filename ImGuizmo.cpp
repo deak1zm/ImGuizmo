@@ -637,23 +637,23 @@ namespace IMGUIZMO_NAMESPACE
    Style::Style()
    {
       // default values
-      TranslationLineThickness = 3.0f;
-      TranslationLineArrowSize = 12.0f;
-      RotationLineThickness = 6.0f;
-      RotationOuterLineThickness = 6.0f;
-      ScaleLineThickness = 6.0f;
-      ScaleLineCircleSize = 12.0f;
-      HatchedAxisLineThickness = 6.0f;
-      CenterCircleSize = 12.0f;
+      TranslationLineThickness = 2.0f;
+      TranslationLineArrowSize = 9.0f;
+      RotationLineThickness = 2.0f;
+      RotationOuterLineThickness = 2.0f;
+      ScaleLineThickness = 2.0f;
+      ScaleLineCircleSize = 9.0f;
+      HatchedAxisLineThickness = 4.0f;
+      CenterCircleSize = 9.0f;
 
       // initialize default colors
-      Colors[DIRECTION_X] = ImVec4(0.443f, 0.369f, 0.847f, 1.000f);
-      Colors[DIRECTION_Y] = ImVec4(0.145f, 0.667f, 0.145f, 1.000f);
-      Colors[DIRECTION_Z] = ImVec4(0.800f, 0.325f, 0.173f, 1.000f);
-      Colors[PLANE_X] = ImVec4(0.478f, 0.408f, 0.847f, 1.000f);
-      Colors[PLANE_Y] = ImVec4(0.000f, 0.666f, 0.000f, 1.000f);
-      Colors[PLANE_Z] = ImVec4(0.000f, 0.000f, 0.666f, 1.000f);
-      Colors[SELECTION] = ImVec4(0.125f, 0.667f, 0.800f, 1.000f);
+      Colors[DIRECTION_X] = ImVec4(0.800f, 0.100f, 0.150f, 1.000f);
+      Colors[DIRECTION_Y] = ImVec4(0.200f, 0.700f, 0.200f, 1.000f);
+      Colors[DIRECTION_Z] = ImVec4(0.100f, 0.250f, 0.800f, 1.000f);
+      Colors[PLANE_X] = ImVec4(0.800f, 0.100f, 0.150f, 1.000f);
+      Colors[PLANE_Y] = ImVec4(0.200f, 0.700f, 0.200f, 1.000f);
+      Colors[PLANE_Z] = ImVec4(0.100f, 0.250f, 0.800f, 1.000f);
+      Colors[SELECTION] = ImVec4(1.000f, 1.000f, 0.000f, 1.000f);
       Colors[INACTIVE] = ImVec4(0.600f, 0.600f, 0.600f, 0.600f);
       Colors[TRANSLATION_LINE] = ImVec4(0.666f, 0.666f, 0.666f, 0.666f);
       Colors[SCALE_LINE] = ImVec4(0.250f, 0.250f, 0.250f, 1.000f);
@@ -801,11 +801,12 @@ namespace IMGUIZMO_NAMESPACE
       trans.TransformPoint(worldPos, mat);
       trans *= 0.5f / trans.w;
       trans += makeVect(0.5f, 0.5f);
-      trans.y = 1.f - trans.y;
+      // trans.y = 1.f - trans.y; // for vulkan change
       trans.x *= size.x;
       trans.y *= size.y;
       trans.x += position.x;
       trans.y += position.y;
+
       return ImVec2(trans.x, trans.y);
    }
 
@@ -817,18 +818,21 @@ namespace IMGUIZMO_NAMESPACE
       mViewProjInverse.Inverse(gContext.mViewMat * gContext.mProjectionMat);
 
       const float mox = ((io.MousePos.x - position.x) / size.x) * 2.f - 1.f;
-      const float moy = (1.f - ((io.MousePos.y - position.y) / size.y)) * 2.f - 1.f;
+      const float moy = (((io.MousePos.y - position.y) / size.y) * 2.f) - 1.f; // Removed y-axis flip for Vulkan
 
       const float zNear = gContext.mReversed ? (1.f - FLT_EPSILON) : 0.f;
       const float zFar = gContext.mReversed ? 0.f : (1.f - FLT_EPSILON);
 
       rayOrigin.Transform(makeVect(mox, moy, zNear, 1.f), mViewProjInverse);
       rayOrigin *= 1.f / rayOrigin.w;
+
       vec_t rayEnd;
       rayEnd.Transform(makeVect(mox, moy, zFar, 1.f), mViewProjInverse);
       rayEnd *= 1.f / rayEnd.w;
+
       rayDir = Normalized(rayEnd - rayOrigin);
    }
+
 
    static float GetSegmentLengthClipSpace(const vec_t& start, const vec_t& end, const bool localCoordinates = false)
    {
@@ -943,7 +947,7 @@ namespace IMGUIZMO_NAMESPACE
       gContext.mWidth = width;
       gContext.mHeight = height;
       gContext.mXMax = gContext.mX + gContext.mWidth;
-      gContext.mYMax = gContext.mY + gContext.mXMax;
+      gContext.mYMax = gContext.mY + gContext.mHeight; // max y top left for vulkan
       gContext.mDisplayRatio = width / height;
    }
 
@@ -1037,11 +1041,15 @@ namespace IMGUIZMO_NAMESPACE
    static void ComputeContext(const float* view, const float* projection, float* matrix, MODE mode)
    {
       gContext.mMode = mode;
+
       gContext.mViewMat = *(matrix_t*)view;
+
       gContext.mProjectionMat = *(matrix_t*)projection;
+
       gContext.mbMouseOver = IsHoveringWindow();
 
       gContext.mModelLocal = *(matrix_t*)matrix;
+
       gContext.mModelLocal.OrthoNormalize();
 
       if (mode == LOCAL)
@@ -1599,6 +1607,7 @@ namespace IMGUIZMO_NAMESPACE
          drawList->AddLine(ImVec2(sourcePosOnScreen.x + dif.x, sourcePosOnScreen.y + dif.y), ImVec2(destinationPosOnScreen.x - dif.x, destinationPosOnScreen.y - dif.y), translationLineColor, 2.f);
 
          char tmps[512];
+         gContext.mModel.v.position.y *= -1.f;
          vec_t deltaInfo = gContext.mModel.v.position - gContext.mMatrixOrigin;
          int componentInfoIndex = (type - MT_MOVE_X) * 3;
          ImFormatString(tmps, sizeof(tmps), translationInfoMask[type - MT_MOVE_X], deltaInfo[translationInfoIndex[componentInfoIndex]], deltaInfo[translationInfoIndex[componentInfoIndex + 1]], deltaInfo[translationInfoIndex[componentInfoIndex + 2]]);
@@ -1857,11 +1866,12 @@ namespace IMGUIZMO_NAMESPACE
             // info text
             char tmps[512];
             ImVec2 destinationPosOnScreen = worldToPos(gContext.mModel.v.position, gContext.mViewProjection);
-            ImFormatString(tmps, sizeof(tmps), "X: %.2f Y: %.2f Z: %.2f"
+            ImFormatString(tmps, sizeof(tmps), "X: %.2f  Y: %.2f  Z: %.2f"
                , (bounds[3] - bounds[0]) * gContext.mBoundsMatrix.component[0].Length() * scale.component[0].Length()
-               , (bounds[4] - bounds[1]) * gContext.mBoundsMatrix.component[1].Length() * scale.component[1].Length()
+               , -(bounds[4] - bounds[1]) * gContext.mBoundsMatrix.component[1].Length() * scale.component[1].Length()
                , (bounds[5] - bounds[2]) * gContext.mBoundsMatrix.component[2].Length() * scale.component[2].Length()
             );
+
             drawList->AddText(ImVec2(destinationPosOnScreen.x + 15, destinationPosOnScreen.y + 15), GetColorU32(TEXT_SHADOW), tmps);
             drawList->AddText(ImVec2(destinationPosOnScreen.x + 14, destinationPosOnScreen.y + 14), GetColorU32(TEXT), tmps);
          }
